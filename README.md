@@ -2,6 +2,8 @@
 A way to demonstrate how kmeans works. Bring up your browser and play with clustering in a two dimensional space.
 Also includes contracting to show items moving towards their centroids.
 
+Used in a presentation at http://slides.com/wasperen/ai-and-the-danger-of-the-average
+
 ## install
 `$ npm update`
 
