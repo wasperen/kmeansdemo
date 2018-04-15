@@ -2,6 +2,8 @@
   "name": "danger-of-average",
   "version": "1.0.0",
   "description": "Showing the effects of machine learning algorithms",
+  "homepage": "https://github.com/wasperen/kmeansdemo",
+  "bugs": "https://github.com/wasperen/kmeansdemo/issues",
   "main": "app.js",
   "dependencies": {
     "express": "^4.16.3",
@@ -13,5 +15,5 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Willem van Asperen",
-  "license": "MIT"
+  "license": "BSD 3-Clause License"
 }
