@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="d3.v5.min.js"></script>
+<script src="d3-array.v1.min.js"></script>
+<script src="d3-collection.v1.min.js"></script>
+<script src="d3-color.v1.min.js"></script>
+<script src="d3-format.v1.min.js"></script>
+<script src="d3-interpolate.v1.min.js"></script>
+<script src="d3-time.v1.min.js"></script>
+<script src="d3-time-format.v2.min.js"></script>
+<script src="d3-scale.v2.min.js"></script>
+
+<script src="underscore-min.js"></script>
+</head>
+<body style='background-color: #d0d0d0;'>
+
+<svg id='grid'></svg>
+
+
+<script language="javascript">
+var data = [];
+var centroids = [];
+
+var dims = {
+	width: 1200,
+	height: 650,
+	border: 25,
+	menuWidth: 200,
+	buttonHeight: 30,
+	dotSize: 10,
+	centroidSize: 15
+}
+
+dims = _.extend(dims, {
+	menu: {
+		left: dims.border,
+		top: dims.border,
+		height: dims.height - 2 * dims.border,
+		width: dims.menuWidth - dims.border,
+		buttonWidth: dims.menuWidth - 2 * dims.border,
+		buttonHeight: dims.buttonHeight
+	},
+	grid: {
+		left: dims.menuWidth,
+		top: dims.border,
+		height: dims.height - 2 * dims.border,
+		width: dims.width - dims.menuWidth - dims.border
+	}
+})
+
+function createPanel(s, d) {
+	return s.append('g')
+		.attr('transform', 'translate(' + d.left + ' ' + d.top + ')')
+		.attr('width', d.width)
+		.attr('height', d.height);
+}
+
+function addBackground(p, color) {
+	p.append('rect')
+		.attr('width', '100%')
+		.attr('height', '100%')
+		.attr('fill', color);
+}
+
+var svg = d3.select('#grid');
+svg.attr('width', dims.width).attr('height', dims.height);
+
+var gridPanel = createPanel(svg, dims.grid);
+//addBackground(gridPanel, '#afafaf');
+
+var xRange = d3.scaleLinear().range([0 + dims.border, dims.grid.width - dims.border]).domain([-1.0, 1.0]);
+var yRange = d3.scaleLinear().range([0 + dims.border, dims.grid.height - dims.border]).domain([-1.0, 1.0]);
+var clusterColorRange = d3.scaleOrdinal(d3.schemeSet1).domain([undefined].concat(_.range(9)));
+
+var centroidPanel = createPanel(svg, dims.grid);
+
+var buttons = {
+	addSample: {
+		name: 'add',
+		run: () => d3.json('/v1/groupedsamples/1').then( s => addData(s) )
+	},
+	addSamples: {
+		name: 'add+',
+		run: () => d3.json('/v1/groupedsamples/15').then( s => addData(s) )
+	},
+	addCentroid: {
+		name: 'centroid',
+		run: () => d3.json('/v1/samples/1').then( s => addCentroid(s) )
+	},
+	assignClusters: {
+		name: 'assign',
+		run: () => doCluster(0)
+	},
+	cluster: {
+		name: 'cluster',
+		run: () => doCluster(1)
+	},
+	clusters: {
+		name: 'cluster+',
+		run: () => doCluster(100)
+	},
+	contract: {
+		name: 'contract',
+		run: () => _.each(centroids, c => contract(c))
+	},
+	contractPlus: {
+		name: 'contract+',
+		run: () => _.each(centroids, c => contract(c, 0.05))
+	}
+}
+
+var menuPanel = createPanel(svg, dims.menu);
+//addBackground(menuPanel, '#afafaf');
+
+var buttonRange = d3.scaleBand()
+	.range([0, dims.menu.height])
+	.paddingOuter(dims.border)
+	.domain(_.keys(buttons));
+var buttonColor = d3.scaleOrdinal(d3.schemeSet2).domain(_.keys(buttons));
+
+_.each(buttons, function(e, k) {
+	button = menuPanel
+		.append('g')
+			.attr('transform', 'translate(0 ' + (buttonRange(k) - dims.menu.buttonHeight / 2) + ')')
+			.on('click', e.run);
+	button
+		.append('rect')
+			.attr('x', 0)
+			.attr('y', 0)
+			.attr('width', dims.menu.buttonWidth)
+			.attr('height', dims.menu.buttonHeight)
+			.attr('fill', buttonColor(k));
+	button
+		.append('text')
+    		.attr("text-anchor", "middle")
+    		.attr('alignment-baseline', 'middle')
+    		.attr('cursor', 'default')
+			.attr('x', dims.menu.buttonWidth / 2)
+			.attr('y', dims.menu.buttonHeight / 2)
+			.attr('id', k)
+			.attr('fill', 'white')
+			.text(e.name);
+});
+
+d3.json('/v1/groupedsamples/50').then( d => addData(d) );
+
+function addToArray(a, b) {
+	var l = a.length;
+	return a.concat(_.map(b, bb => _.extend(bb, { id: bb.id + l })));
+}
+
+function addData(d) {
+	data = addToArray(data, d);
+	updateGrid();
+}
+
+function addCentroid(d) {
+	centroids = addToArray(centroids, d);
+	updateGrid();
+}
+
+function doCluster(maxIterations) {
+	_.each(data, d => d.prevCluster = d.cluster);
+	console.log(data);
+
+	var options = {
+		data: data,
+		centroids: centroids,
+		maxIterations: maxIterations
+	};
+
+	if (maxIterations == 0) {
+		d3.json('/v1/assignclusters', {
+			method: 'POST',
+			credentials: 'same-origin',
+			redirect: 'follow',
+			body: JSON.stringify(options),
+			headers: {
+		      'content-type': 'application/json'
+			}
+		}).then(d => { data = d; updateGrid() });
+	} else {
+		d3.json('/v1/makeclusters', {
+			method: 'POST',
+			credentials: 'same-origin',
+			redirect: 'follow',
+			body: JSON.stringify(options),
+			headers: {
+		      'content-type': 'application/json'
+			}
+		}).then(d => { data = d.data; centroids = d.centroids, updateGrid() })		
+	}
+
+}
+
+function updateGrid() {
+	var dots = gridPanel.selectAll('circle').data(data, d => d.id )
+	dots
+		.enter()
+		.append('circle')
+		.attr('cx', dims.grid.width / 2)
+		.attr('cy', dims.grid.height / 2)
+		.attr('r', dims.dotSize)
+		.attr('fill', 'grey')
+		.transition()
+		.duration( d => 1500 + 10 * d.id )
+		.attr('cx', d => xRange(d.vector[0]))
+		.attr('cy', d => yRange(d.vector[1]))
+		.attr('fill', d => clusterColorRange(d.cluster));
+	dots
+		.transition()
+		.duration(500)
+		.attr('fill', d => (!_.has(d, 'prevCluster') || d.prevCluster != d.cluster) ?
+			d3.color(clusterColorRange(d.cluster)).brighter().rgb() : 
+			clusterColorRange(d.cluster))
+		.transition()
+		.attr('cx', d => xRange(d.vector[0]))
+		.attr('cy', d => yRange(d.vector[1]))
+		.attr('fill', d => clusterColorRange(d.cluster));
+	// dots
+	// 	.removed()
+	// 	.transition()
+	// 	.attr('opacity', 0)
+	// 	.delete();
+
+	var centers = centroidPanel.selectAll('circle').data(centroids, d => d.id );
+	centers
+		.enter()
+		.append('circle')
+		.attr('cx', d => xRange(d.vector[0]))
+		.attr('cy', d => yRange(d.vector[1]))
+		.attr('r', dims.centroidSize)
+		.attr('fill', d => d3.color(clusterColorRange(d.id)).brighter().rgb())
+		.attr('stroke', 'gray')
+		.attr('stroke-width', 4)
+		.on('click', d => contract(d));
+	centers
+		.transition()
+		.attr('cx', d => xRange(d.vector[0]))
+		.attr('cy', d => yRange(d.vector[1]));
+}
+
+function distance(a, b) {
+	var d2 = _.reduce(_.range(a.length), (m,i) => m + (a[i] - b[i]) * (a[i] - b[i]), 0.0);
+	return Math.sqrt(d2);
+}
+
+function contract(centroid, speedFactor=0.01) {
+	var point = centroid.vector;
+
+	_.chain(data)
+		.filter(d => d.cluster == centroid.id)
+		.each(function(d) {
+			var dist = distance(point, d.vector);
+			var speed = speedFactor * Math.cos(Math.PI * dist / 4);
+
+			d.vector = _.map(d.vector, (c,i) => c + speed * (point[i] - c) / dist)
+		});
+
+	updateGrid();
+}
+
+</script>
+
+</body>
+</html>

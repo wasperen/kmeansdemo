@@ -1,0 +1,19 @@
+{
+  "name": "danger-of-average",
+  "version": "1.0.0",
+  "description": "Showing the effects of machine learning algorithms",
+  "main": "app.js",
+  "dependencies": {
+    "express": "^4.16.3",
+    "kmeans": "0.0.1",
+    "ml-kmeans": "^3.0.0",
+    "true-random": "^1.1.1",
+    "underscore": "^1.8.3"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Willem van Asperen",
+  "license": "MIT"
+}
